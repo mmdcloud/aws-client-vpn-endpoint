@@ -23,7 +23,7 @@ variable "private_subnets" {
 variable "azs" {
   type        = list(string)
   description = "Availability Zones"
-}   
+}
 
 variable "certificate_validity_period_hours" {
   type        = number

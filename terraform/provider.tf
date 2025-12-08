@@ -9,12 +9,6 @@ terraform {
       version = "~> 4.0"
     }
   }
-  backend "s3" {
-    bucket       = "carshubuseast1tfstate"
-    key          = "prod/us-east-1/terraform.tfstate"
-    region       = "us-east-1"
-    use_lockfile = true
-  }
 }
 
 # Configure the AWS Provider
