@@ -4,10 +4,6 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
-    vault = {
-      source  = "hashicorp/vault"
-      version = "~> 4.0"
-    }
   }
 }
 
@@ -15,5 +11,3 @@ terraform {
 provider "aws" {
   region = "us-east-1"
 }
-
-provider "vault" {}

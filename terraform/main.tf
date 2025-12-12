@@ -232,7 +232,7 @@ module "launch_template" {
   network_interfaces = [
     {
       associate_public_ip_address = false
-      security_groups             = [module.asg_sg.id]
+      security_groups             = [aws_security_group.asg_sg.id]
     }
   ]
   user_data = base64encode(templatefile("${path.module}/scripts/user_data.sh", {}))
@@ -248,7 +248,7 @@ module "asg" {
   health_check_grace_period = 300
   health_check_type         = "ELB"
   force_delete              = true
-  target_group_arns         = [module.lb.target_groups[0].arn]
+  target_group_arns         = [module.lb.target_groups.lb_target_group.arn]
   vpc_zone_identifier       = module.vpc.private_subnets
   launch_template_id        = module.launch_template.id
   launch_template_version   = "$Latest"
@@ -309,7 +309,7 @@ module "lb" {
     lb_target_group = {
       backend_protocol = "HTTP"
       backend_port     = 80
-      target_type      = "ip"
+      target_type      = "instance"
       health_check = {
         enabled             = true
         healthy_threshold   = 3
@@ -356,15 +356,15 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
 }
 
 resource "aws_ec2_client_vpn_network_association" "vpn_subnet" {
-  for_each               = toset(module.vpc.public_subnets)
+  count                  = length(module.vpc.public_subnets)
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  subnet_id              = each.value
+  subnet_id              = module.vpc.public_subnets[count.index]
 }
 
 resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
-  for_each               = toset(module.vpc.public_subnets)
+  count                  = length(module.vpc.public_subnets)
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  target_network_cidr    = each.value.cidr_block
+  target_network_cidr    = module.vpc.public_subnets_cidr_blocks[0]
   authorize_all_groups   = true
 }
 
