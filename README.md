@@ -1,4 +1,4 @@
-# AWS Client VPN with Auto-Scaling Web Application
+# 🚀 AWS Client VPN with Auto-Scaling Web Application
 
 Production-grade Terraform infrastructure for deploying a secure AWS Client VPN endpoint with an auto-scaling web application behind an Application Load Balancer.
 
