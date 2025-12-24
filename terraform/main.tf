@@ -20,80 +20,95 @@ module "vpc" {
   }
 }
 
-resource "aws_security_group" "lb_sg" {
+module "lb_sg" {
+  source = "./modules/security-groups"
   name   = "lb-sg"
   vpc_id = module.vpc.vpc_id
-
-  ingress {
-    description = "HTTP traffic"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTPS traffic"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
+  ingress_rules = [
+    {
+      description     = "HTTP Traffic"
+      from_port       = 80
+      to_port         = 80
+      protocol        = "tcp"
+      security_groups = []
+      cidr_blocks     = ["0.0.0.0/0"]
+    },
+    {
+      description     = "HTTPS Traffic"
+      from_port       = 443
+      to_port         = 443
+      protocol        = "tcp"
+      security_groups = []
+      cidr_blocks     = ["0.0.0.0/0"]
+    }
+  ]
+  egress_rules = [
+    {
+      description = "Allow all outbound traffic"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
   tags = {
     Name = "lb-sg"
   }
 }
 
-resource "aws_security_group" "asg_sg" {
+module "asg_sg" {
+  source = "./modules/security-groups"
   name   = "asg-sg"
   vpc_id = module.vpc.vpc_id
-
-  ingress {
-    description     = "HTTP traffic"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    cidr_blocks     = []
-    security_groups = [aws_security_group.lb_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
+  ingress_rules = [
+    {
+      description     = "HTTP Traffic"
+      from_port       = 80
+      to_port         = 80
+      protocol        = "tcp"
+      security_groups = [module.lb_sg.id]
+      cidr_blocks     = []
+    }
+  ]
+  egress_rules = [
+    {
+      description = "Allow all outbound traffic"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
   tags = {
     Name = "asg-sg"
   }
 }
 
-resource "aws_security_group" "vpn" {
-  name_prefix = "client-vpn-endpoint-sg"
-  description = "Security group for Client VPN endpoint"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+module "vpn_sg" {
+  source = "./modules/security-groups"
+  name   = "client-vpn-endpoint-sg"
+  vpc_id = module.vpc.vpc_id
+  ingress_rules = [
+    {
+      description     = "HTTPS Traffic"
+      from_port       = 443
+      to_port         = 443
+      protocol        = "tcp"
+      security_groups = []
+      cidr_blocks     = ["0.0.0.0/0"]
+    }
+  ]
+  egress_rules = [
+    {
+      description = "Allow all outbound traffic"
+      from_port   = 0
+      to_port     = 0
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
+  tags = {
+    Name = "vpn-sg"
   }
 }
 
@@ -232,7 +247,7 @@ module "launch_template" {
   network_interfaces = [
     {
       associate_public_ip_address = false
-      security_groups             = [aws_security_group.asg_sg.id]
+      security_groups             = [module.asg_sg.id]
     }
   ]
   user_data = base64encode(templatefile("${path.module}/scripts/user_data.sh", {}))
@@ -291,7 +306,7 @@ module "lb" {
   ip_address_type            = "ipv4"
   internal                   = false
   security_groups = [
-    aws_security_group.lb_sg.id
+    module.lb_sg.id
   ]
   access_logs = {
     bucket = "${module.lb_logs.bucket}"
@@ -341,7 +356,7 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
     root_certificate_chain_arn = aws_acm_certificate.ca_cert.arn
   }
   transport_protocol = "tcp"
-  security_group_ids = [aws_security_group.vpn.id]
+  security_group_ids = [module.vpn_sg.id]
   connection_log_options {
     enabled               = true
     cloudwatch_log_group  = aws_cloudwatch_log_group.vpn_logs.name
