@@ -3,7 +3,7 @@
 # --------------------------------------------------------------------------------------
 module "vpc" {
   source                  = "./modules/vpc"
-  vpc_name                = "vpc"
+  vpc_name                = "vpn-vpc"
   vpc_cidr                = "10.0.0.0/16"
   azs                     = var.azs
   public_subnets          = var.public_subnets
@@ -379,7 +379,7 @@ resource "aws_ec2_client_vpn_network_association" "vpn_subnet" {
 resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
   count                  = length(module.vpc.public_subnets)
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  target_network_cidr    = module.vpc.public_subnets_cidr_blocks[0]
+  target_network_cidr    = module.vpc.public_subnets_cidr_blocks[count.index]
   authorize_all_groups   = true
 }
 
