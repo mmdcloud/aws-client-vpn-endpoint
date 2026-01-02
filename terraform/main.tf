@@ -91,9 +91,9 @@ module "vpn_sg" {
   ingress_rules = [
     {
       description     = "HTTPS Traffic"
-      from_port       = 443
-      to_port         = 443
-      protocol        = "tcp"
+      from_port       = 1194
+      to_port         = 1194
+      protocol        = "udp"
       security_groups = []
       cidr_blocks     = ["0.0.0.0/0"]
     }
@@ -355,7 +355,7 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
     type                       = "certificate-authentication"
     root_certificate_chain_arn = aws_acm_certificate.ca_cert.arn
   }
-  transport_protocol = "tcp"
+  transport_protocol = "udp"
   security_group_ids = [module.vpn_sg.id]
   connection_log_options {
     enabled               = true
@@ -373,14 +373,22 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
 resource "aws_ec2_client_vpn_network_association" "vpn_subnet" {
   count                  = length(module.vpc.public_subnets)
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  subnet_id              = module.vpc.public_subnets[count.index]
+  subnet_id              = module.vpc.private_subnets[count.index]
 }
 
 resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
-  count                  = length(module.vpc.public_subnets)
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  target_network_cidr    = module.vpc.public_subnets_cidr_blocks[count.index]
+  target_network_cidr    = "10.0.0.0/16"
   authorize_all_groups   = true
+  description            = "Allow access to entire VPC"
+}
+
+resource "aws_ec2_client_vpn_route" "vpn_route" {
+  count                  = length(module.vpc.private_subnets)
+  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
+  destination_cidr_block = "10.0.0.0/16"
+  target_vpc_subnet_id   = module.vpc.private_subnets[count.index]
+  description            = "Route to VPC resources"
 }
 
 resource "aws_cloudwatch_log_group" "vpn_logs" {
@@ -403,19 +411,19 @@ data "aws_ec2_client_vpn_endpoint" "selected" {
 
 resource "local_file" "vpn_config" {
   filename        = "${path.root}/client.ovpn"
-  content         = <<-EOT
+  content = <<-EOT
 client
 dev tun
 proto udp
-remote ${aws_ec2_client_vpn_endpoint.vpn.dns_name} 443
+remote ${aws_ec2_client_vpn_endpoint.vpn.dns_name} 1194
 remote-random-hostname
 resolv-retry infinite
 nobind
 remote-cert-tls server
 cipher AES-256-GCM
-verify-x509-name ${var.vpn_domain} name
-reneg-sec 0
 verb 3
+
+dhcp-option DNS 169.254.169.253
 
 <ca>
 ${tls_self_signed_cert.ca_cert.cert_pem}
