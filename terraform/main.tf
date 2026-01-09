@@ -1,3 +1,9 @@
+resource "random_id" "id" {
+  byte_length = 8
+}
+
+data "aws_elb_service_account" "main" {}
+
 # --------------------------------------------------------------------------------------
 # VPC Configuration
 # --------------------------------------------------------------------------------------
@@ -274,9 +280,40 @@ module "asg" {
 # -------------------------------------------------------------------------------
 module "lb_logs" {
   source        = "./modules/s3"
-  bucket_name   = "lb-logs"
+  bucket_name   = "lb-logs-${random_id.id.hex}"
   objects       = []
-  bucket_policy = ""
+  bucket_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AWSLogDeliveryWrite"
+        Effect = "Allow"
+        Principal = {
+          Service = "logging.s3.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
+      },
+      {
+        Sid    = "AWSLogDeliveryAclCheck"
+        Effect = "Allow"
+        Principal = {
+          Service = "logging.s3.amazonaws.com"
+        }
+        Action   = "s3:GetBucketAcl"
+        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}"
+      },
+      {
+        Sid    = "AWSELBAccountWrite"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_elb_service_account.main.id}:root"
+        }
+        Action   = "s3:PutObject"
+        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
+      }
+    ]
+  })
   cors = [
     {
       allowed_headers = ["*"]
@@ -383,13 +420,13 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
   description            = "Allow access to entire VPC"
 }
 
-resource "aws_ec2_client_vpn_route" "vpn_route" {
-  count                  = length(module.vpc.private_subnets)
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  destination_cidr_block = "10.0.0.0/16"
-  target_vpc_subnet_id   = module.vpc.private_subnets[count.index]
-  description            = "Route to VPC resources"
-}
+# resource "aws_ec2_client_vpn_route" "vpn_route" {
+#   count                  = length(module.vpc.private_subnets)
+#   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
+#   destination_cidr_block = "10.0.0.0/16"
+#   target_vpc_subnet_id   = module.vpc.private_subnets[count.index]
+#   description            = "Route to VPC resources"
+# }
 
 resource "aws_cloudwatch_log_group" "vpn_logs" {
   # encrypted by default
@@ -411,7 +448,7 @@ data "aws_ec2_client_vpn_endpoint" "selected" {
 
 resource "local_file" "vpn_config" {
   filename        = "${path.root}/client.ovpn"
-  content = <<-EOT
+  content         = <<-EOT
 client
 dev tun
 proto udp
