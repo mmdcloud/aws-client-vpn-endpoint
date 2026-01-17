@@ -279,9 +279,9 @@ module "asg" {
 # Load Balancer
 # -------------------------------------------------------------------------------
 module "lb_logs" {
-  source        = "./modules/s3"
-  bucket_name   = "lb-logs-${random_id.id.hex}"
-  objects       = []
+  source      = "./modules/s3"
+  bucket_name = "lb-logs-${random_id.id.hex}"
+  objects     = []
   bucket_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
