@@ -1,0 +1,9 @@
+region                            = "us-east-1"
+public_subnets                    = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+private_subnets                   = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
+azs                               = ["us-east-1a", "us-east-1b", "us-east-1c"]
+organization_name                 = "mohitcloud"
+vpn_domain                        = "mohitcloud.xyz"
+certificate_validity_period_hours = 12
+split_tunnel                      = true
+client_cidr_block                 = "172.16.0.0/22"

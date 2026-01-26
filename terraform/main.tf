@@ -396,8 +396,8 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
   security_group_ids = [module.vpn_sg.id]
   connection_log_options {
     enabled               = true
-    cloudwatch_log_group  = aws_cloudwatch_log_group.vpn_logs.name
-    cloudwatch_log_stream = aws_cloudwatch_log_stream.vpn_logs.name
+    cloudwatch_log_group  = module.vpn_logs_group.name
+    cloudwatch_log_stream = aws_cloudwatch_log_stream.vpn_logs_stream.name
   }
   dns_servers           = ["169.254.169.253"]
   session_timeout_hours = 8
@@ -428,15 +428,16 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
 #   description            = "Route to VPC resources"
 # }
 
-resource "aws_cloudwatch_log_group" "vpn_logs" {
-  # encrypted by default
-  name              = "/aws/vpn/${var.vpn_domain}"
+module "vpn_logs_group" {
+  source            = "./modules/cloudwatch/cloudwatch-log-group"
+  log_group_name    = "/aws/vpn/${var.vpn_domain}"
   retention_in_days = 2192
+  skip_destroy      = false
 }
 
-resource "aws_cloudwatch_log_stream" "vpn_logs" {
+resource "aws_cloudwatch_log_stream" "vpn_logs_stream" {
   name           = "vpn-connection-logs"
-  log_group_name = aws_cloudwatch_log_group.vpn_logs.name
+  log_group_name = module.vpn_logs_group.name
 }
 
 data "aws_ec2_client_vpn_endpoint" "selected" {
