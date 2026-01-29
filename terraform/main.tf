@@ -408,7 +408,7 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
 }
 
 resource "aws_ec2_client_vpn_network_association" "vpn_subnet" {
-  count                  = length(module.vpc.public_subnets)
+  count                  = length(module.vpc.private_subnets)
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
   subnet_id              = module.vpc.private_subnets[count.index]
 }

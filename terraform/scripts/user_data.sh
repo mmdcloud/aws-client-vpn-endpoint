@@ -13,8 +13,8 @@ sudo npm i -g pm2
 cd /home/ubuntu
 mkdir nodeapp
 # Checking out from Version Control
-git clone https://github.com/mmdcloud/aws-verified-access
-cd aws-verified-access/src
+git clone https://github.com/mmdcloud/aws-client-vpn-endpoint
+cd aws-client-vpn-endpoint/src
 cp -r . /home/ubuntu/nodeapp/
 cd /home/ubuntu/nodeapp/
 
