@@ -420,13 +420,13 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
   description            = "Allow access to entire VPC"
 }
 
-# resource "aws_ec2_client_vpn_route" "vpn_route" {
-#   count                  = length(module.vpc.private_subnets)
-#   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-#   destination_cidr_block = "10.0.0.0/16"
-#   target_vpc_subnet_id   = module.vpc.private_subnets[count.index]
-#   description            = "Route to VPC resources"
-# }
+resource "aws_ec2_client_vpn_route" "vpn_route" {
+  # count                  = length(module.vpc.private_subnets)
+  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
+  destination_cidr_block = "10.0.0.0/16"
+  target_vpc_subnet_id   = module.vpc.private_subnets[0]
+  description            = "Route to subnet"
+}
 
 module "vpn_logs_group" {
   source            = "./modules/cloudwatch/cloudwatch-log-group"
