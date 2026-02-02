@@ -96,10 +96,10 @@ module "vpn_sg" {
   vpc_id = module.vpc.vpc_id
   ingress_rules = [
     {
-      description     = "HTTPS Traffic"
-      from_port       = 1194
-      to_port         = 1194
-      protocol        = "udp"
+      description     = "Allow all inbound for VPN endpoint"
+      from_port       = 0
+      to_port         = 0
+      protocol        = "-1"
       security_groups = []
       cidr_blocks     = ["0.0.0.0/0"]
     }
@@ -399,7 +399,7 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
     cloudwatch_log_group  = module.vpn_logs_group.name
     cloudwatch_log_stream = aws_cloudwatch_log_stream.vpn_logs_stream.name
   }
-  dns_servers           = ["169.254.169.253"]
+  dns_servers           = ["169.254.169.253","8.8.8.8"]
   session_timeout_hours = 8
   client_login_banner_options {
     enabled     = true
@@ -417,16 +417,21 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
   target_network_cidr    = "10.0.0.0/16"
   authorize_all_groups   = true
-  description            = "Allow access to entire VPC"
+  description            = "Allow access to VPC"
+  
+  depends_on = [
+    aws_ec2_client_vpn_network_association.vpn_subnet
+  ]
 }
 
-resource "aws_ec2_client_vpn_route" "vpn_route" {
-  # count                  = length(module.vpc.private_subnets)
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  destination_cidr_block = "10.0.0.0/16"
-  target_vpc_subnet_id   = module.vpc.private_subnets[0]
-  description            = "Route to subnet"
-}
+# Route is automatically created by subnet association
+# When you associate subnets, AWS automatically creates routes to the VPC CIDR
+# resource "aws_ec2_client_vpn_route" "vpn_route" {
+#   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
+#   destination_cidr_block = "10.0.0.0/16"
+#   target_vpc_subnet_id   = module.vpc.private_subnets[0]
+#   description            = "Route to VPC"
+# }
 
 module "vpn_logs_group" {
   source            = "./modules/cloudwatch/cloudwatch-log-group"
@@ -453,15 +458,16 @@ resource "local_file" "vpn_config" {
 client
 dev tun
 proto udp
-remote ${aws_ec2_client_vpn_endpoint.vpn.dns_name} 1194
+remote ${replace(aws_ec2_client_vpn_endpoint.vpn.dns_name, "*", random_id.id.hex)} 1194
 remote-random-hostname
 resolv-retry infinite
 nobind
+persist-key
+persist-tun
 remote-cert-tls server
 cipher AES-256-GCM
 verb 3
-
-dhcp-option DNS 169.254.169.253
+reneg-sec 0
 
 <ca>
 ${tls_self_signed_cert.ca_cert.cert_pem}
