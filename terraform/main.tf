@@ -399,7 +399,7 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
     cloudwatch_log_group  = module.vpn_logs_group.name
     cloudwatch_log_stream = aws_cloudwatch_log_stream.vpn_logs_stream.name
   }
-  dns_servers           = ["169.254.169.253","8.8.8.8"]
+  dns_servers           = ["169.254.169.253", "8.8.8.8"]
   session_timeout_hours = 8
   client_login_banner_options {
     enabled     = true
@@ -418,7 +418,7 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
   target_network_cidr    = "10.0.0.0/16"
   authorize_all_groups   = true
   description            = "Allow access to VPC"
-  
+
   depends_on = [
     aws_ec2_client_vpn_network_association.vpn_subnet
   ]
@@ -458,7 +458,7 @@ resource "local_file" "vpn_config" {
 client
 dev tun
 proto udp
-remote ${replace(aws_ec2_client_vpn_endpoint.vpn.dns_name, "*", random_id.id.hex)} 1194
+remote ${replace(aws_ec2_client_vpn_endpoint.vpn.dns_name, "*.", "")} 443
 remote-random-hostname
 resolv-retry infinite
 nobind
