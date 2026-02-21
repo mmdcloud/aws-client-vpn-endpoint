@@ -424,15 +424,6 @@ resource "aws_ec2_client_vpn_authorization_rule" "vpn_auth_rule" {
   ]
 }
 
-# Route is automatically created by subnet association
-# When you associate subnets, AWS automatically creates routes to the VPC CIDR
-# resource "aws_ec2_client_vpn_route" "vpn_route" {
-#   client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-#   destination_cidr_block = "10.0.0.0/16"
-#   target_vpc_subnet_id   = module.vpc.private_subnets[0]
-#   description            = "Route to VPC"
-# }
-
 module "vpn_logs_group" {
   source            = "./modules/cloudwatch/cloudwatch-log-group"
   log_group_name    = "/aws/vpn/${var.vpn_domain}"
