@@ -341,7 +341,7 @@ module "lb" {
   enable_deletion_protection = false
   drop_invalid_header_fields = true
   ip_address_type            = "ipv4"
-  internal                   = false
+  internal                   = true
   security_groups = [
     module.lb_sg.id
   ]
