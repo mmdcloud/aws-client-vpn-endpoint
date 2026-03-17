@@ -5,5 +5,5 @@ azs                               = ["us-east-1a", "us-east-1b", "us-east-1c"]
 organization_name                 = "mohitcloud"
 vpn_domain                        = "mohitcloud.xyz"
 certificate_validity_period_hours = 12
-split_tunnel                      = true
+split_tunnel                      = false
 client_cidr_block                 = "172.16.0.0/22"

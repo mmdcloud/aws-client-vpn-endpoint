@@ -36,16 +36,8 @@ module "lb_sg" {
       from_port       = 80
       to_port         = 80
       protocol        = "tcp"
+      cidr_blocks     = [var.client_cidr_block]
       security_groups = []
-      cidr_blocks     = ["0.0.0.0/0"]
-    },
-    {
-      description     = "HTTPS Traffic"
-      from_port       = 443
-      to_port         = 443
-      protocol        = "tcp"
-      security_groups = []
-      cidr_blocks     = ["0.0.0.0/0"]
     }
   ]
   egress_rules = [
@@ -337,7 +329,7 @@ module "lb" {
   name                       = "lb"
   load_balancer_type         = "application"
   vpc_id                     = module.vpc.vpc_id
-  subnets                    = module.vpc.public_subnets
+  subnets                    = module.vpc.private_subnets
   enable_deletion_protection = false
   drop_invalid_header_fields = true
   ip_address_type            = "ipv4"
