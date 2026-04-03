@@ -231,6 +231,11 @@ resource "aws_iam_instance_profile" "iam_instance_profile" {
   role = aws_iam_role.ec2_role.name
 }
 
+resource "aws_iam_role_policy_attachment" "ssm" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 # Instance template
 module "launch_template" {
   source                               = "./modules/launch_template"
@@ -240,8 +245,7 @@ module "launch_template" {
   image_id                             = "ami-005fc0f236362e99f"
   instance_type                        = "t2.micro"
   instance_initiated_shutdown_behavior = "stop"
-  instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name
-  key_name                             = "madmaxkeypair"
+  instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name  
   network_interfaces = [
     {
       associate_public_ip_address = false
