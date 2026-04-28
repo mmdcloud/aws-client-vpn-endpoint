@@ -36,7 +36,7 @@ module "lb_sg" {
       from_port       = 80
       to_port         = 80
       protocol        = "tcp"
-      cidr_blocks     = [var.client_cidr_block]
+      cidr_blocks     = ["10.0.0.0/16"]
       security_groups = []
     }
   ]
@@ -236,16 +236,31 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"]
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 # Instance template
 module "launch_template" {
   source                               = "./modules/launch_template"
   name                                 = "launch_template"
   description                          = "launch_template"
   ebs_optimized                        = false
-  image_id                             = "ami-005fc0f236362e99f"
+  image_id                             = data.aws_ami.ubuntu.id
   instance_type                        = "t2.micro"
   instance_initiated_shutdown_behavior = "stop"
-  instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name  
+  instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name
   network_interfaces = [
     {
       associate_public_ip_address = false

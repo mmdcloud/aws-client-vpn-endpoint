@@ -4,7 +4,7 @@ variable "image_id" {}
 variable "instance_type" {}
 variable "key_name" {
   type = string
-  default = {}
+  default = ""
 }
 variable "ebs_optimized" {}
 variable "instance_initiated_shutdown_behavior" {}
