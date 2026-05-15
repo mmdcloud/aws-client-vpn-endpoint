@@ -36,7 +36,7 @@ module "lb_sg" {
       from_port       = 80
       to_port         = 80
       protocol        = "tcp"
-      cidr_blocks     = ["10.0.0.0/16"]
+      cidr_blocks     = ["10.0.0.0/16", "${var.client_cidr_block}"]
       security_groups = []
     }
   ]
@@ -452,6 +452,14 @@ data "aws_ec2_client_vpn_endpoint" "selected" {
   depends_on = [
     aws_ec2_client_vpn_endpoint.vpn
   ]
+}
+
+resource "aws_ec2_client_vpn_route" "vpc_route" {
+  count = length(module.vpc.private_subnets)
+
+  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
+  destination_cidr_block = "10.0.0.0/16"
+  target_vpc_subnet_id   = module.vpc.private_subnets[count.index]
 }
 
 resource "local_file" "vpn_config" {
