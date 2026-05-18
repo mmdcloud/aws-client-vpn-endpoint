@@ -18,9 +18,9 @@ module "vpc" {
   enable_dns_support      = true
   create_igw              = true
   map_public_ip_on_launch = true
-  enable_nat_gateway      = true
+  enable_nat_gateway      = false
   single_nat_gateway      = false
-  one_nat_gateway_per_az  = true
+  one_nat_gateway_per_az  = false
   tags = {
     Project = "aws-vpn-endpoint"
   }
@@ -36,7 +36,7 @@ module "lb_sg" {
       from_port       = 80
       to_port         = 80
       protocol        = "tcp"
-      cidr_blocks     = ["10.0.0.0/16", "${var.client_cidr_block}"]
+      cidr_blocks     = ["10.0.0.0/16", var.client_cidr_block]
       security_groups = []
     }
   ]
@@ -274,9 +274,9 @@ module "launch_template" {
 module "asg" {
   source                    = "./modules/auto_scaling_group"
   name                      = "asg"
-  min_size                  = 3
-  max_size                  = 50
-  desired_capacity          = 3
+  min_size                  = 2
+  max_size                  = 10
+  desired_capacity          = 2
   health_check_grace_period = 300
   health_check_type         = "ELB"
   force_delete              = true

@@ -8,13 +8,18 @@ terraform {
       source  = "hashicorp/random"
       version = "3.7.2"
     }
-
   }
+  # backend "s3" {
+  #   bucket       = "awsclientvpnendpoint"
+  #   key          = "terraform.tfstate"
+  #   region       = var.region
+  #   use_lockfile = true
+  # }
 }
 
 # Configure the AWS Provider
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
 
 provider "random" {}
