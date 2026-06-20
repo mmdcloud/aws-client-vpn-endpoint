@@ -8,6 +8,14 @@ terraform {
       source  = "hashicorp/random"
       version = "3.7.2"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.0"
+    }
   }
   # backend "s3" {
   #   bucket       = "awsclientvpnendpoint"

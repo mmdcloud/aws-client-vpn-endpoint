@@ -39,3 +39,8 @@ variable "client_cidr_block" {
   type        = string
   description = "Client CIDR block for VPN"
 }
+
+variable "alb_certificate_arn" {
+  type        = string
+  description = "ACM certificate ARN for the internal ALB HTTPS listener"
+}

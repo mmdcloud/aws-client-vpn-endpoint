@@ -18,8 +18,8 @@ module "vpc" {
   enable_dns_support      = true
   create_igw              = true
   map_public_ip_on_launch = true
-  enable_nat_gateway      = false
-  single_nat_gateway      = false
+  enable_nat_gateway      = true
+  single_nat_gateway      = true   # set to false and one_nat_gateway_per_az = true for production HA
   one_nat_gateway_per_az  = false
   tags = {
     Project = "aws-vpn-endpoint"
@@ -88,10 +88,10 @@ module "vpn_sg" {
   vpc_id = module.vpc.vpc_id
   ingress_rules = [
     {
-      description     = "Allow all inbound for VPN endpoint"
-      from_port       = 0
-      to_port         = 0
-      protocol        = "-1"
+      description     = "Allow VPN clients - UDP 443"
+      from_port       = 443
+      to_port         = 443
+      protocol        = "udp"
       security_groups = []
       cidr_blocks     = ["0.0.0.0/0"]
     }
@@ -258,7 +258,7 @@ module "launch_template" {
   description                          = "launch_template"
   ebs_optimized                        = false
   image_id                             = data.aws_ami.ubuntu.id
-  instance_type                        = "t2.micro"
+  instance_type                        = "t3.micro"
   instance_initiated_shutdown_behavior = "stop"
   instance_profile_name                = aws_iam_instance_profile.iam_instance_profile.name
   network_interfaces = [
@@ -304,24 +304,6 @@ module "lb_logs" {
         }
         Action   = "s3:PutObject"
         Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
-      },
-      {
-        Sid    = "AWSLogDeliveryAclCheck"
-        Effect = "Allow"
-        Principal = {
-          Service = "logging.s3.amazonaws.com"
-        }
-        Action   = "s3:GetBucketAcl"
-        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}"
-      },
-      {
-        Sid    = "AWSELBAccountWrite"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_elb_service_account.main.id}:root"
-        }
-        Action   = "s3:PutObject"
-        Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
       }
     ]
   })
@@ -363,6 +345,16 @@ module "lb" {
     lb_http_listener = {
       port     = 80
       protocol = "HTTP"
+      redirect = {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+    lb_https_listener = {
+      port            = 443
+      protocol        = "HTTPS"
+      certificate_arn = var.alb_certificate_arn
       forward = {
         target_group_key = "lb_target_group"
       }
@@ -454,13 +446,8 @@ data "aws_ec2_client_vpn_endpoint" "selected" {
   ]
 }
 
-resource "aws_ec2_client_vpn_route" "vpc_route" {
-  count = length(module.vpc.private_subnets)
-
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  destination_cidr_block = "10.0.0.0/16"
-  target_vpc_subnet_id   = module.vpc.private_subnets[count.index]
-}
+# Note: Routes for 10.0.0.0/16 are automatically created when subnets are
+# associated with the VPN endpoint above. No manual route resource needed.
 
 resource "local_file" "vpn_config" {
   filename        = "${path.root}/client.ovpn"
