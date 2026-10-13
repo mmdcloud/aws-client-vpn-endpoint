@@ -1,7 +1,7 @@
-region                            = "us-east-1"
+region                            = "ap-southeast-2"
 public_subnets                    = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
 private_subnets                   = ["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]
-azs                               = ["us-east-1a", "us-east-1b", "us-east-1c"]
+azs                               = ["ap-southeast-2a", "ap-southeast-2b", "ap-southeast-2c"]
 organization_name                 = "mohitcloud"
 vpn_domain                        = "mohitcloud.xyz"
 certificate_validity_period_hours = 8760

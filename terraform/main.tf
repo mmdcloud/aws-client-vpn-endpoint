@@ -19,7 +19,7 @@ module "vpc" {
   create_igw              = true
   map_public_ip_on_launch = true
   enable_nat_gateway      = true
-  single_nat_gateway      = true   # set to false and one_nat_gateway_per_az = true for production HA
+  single_nat_gateway      = true # set to false and one_nat_gateway_per_az = true for production HA
   one_nat_gateway_per_az  = false
   tags = {
     Project = "aws-vpn-endpoint"
@@ -38,6 +38,14 @@ module "lb_sg" {
       protocol        = "tcp"
       cidr_blocks     = ["10.0.0.0/16", var.client_cidr_block]
       security_groups = []
+    },
+    {
+      description     = "HTTPS Traffic"
+      from_port       = 443
+      to_port         = 443
+      protocol        = "tcp"
+      cidr_blocks     = ["10.0.0.0/16", var.client_cidr_block]
+      security_groups = [module.vpn_sg.id]
     }
   ]
   egress_rules = [
@@ -204,9 +212,10 @@ resource "aws_acm_certificate" "vpn_cert" {
   certificate_chain = tls_self_signed_cert.ca_cert.cert_pem
 }
 
-resource "aws_acm_certificate" "ca_cert" {
-  private_key      = tls_private_key.ca_key.private_key_pem
-  certificate_body = tls_self_signed_cert.ca_cert.cert_pem
+resource "aws_acm_certificate" "client_cert" {
+  private_key       = tls_private_key.client_key.private_key_pem
+  certificate_body  = tls_locally_signed_cert.client_cert.cert_pem
+  certificate_chain = tls_self_signed_cert.ca_cert.cert_pem
 }
 
 # -------------------------------------------------------------------------------
@@ -297,10 +306,10 @@ module "lb_logs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AWSLogDeliveryWrite"
+        Sid    = "AWSELBAccountWrite"
         Effect = "Allow"
         Principal = {
-          Service = "logging.s3.amazonaws.com"
+          AWS = data.aws_elb_service_account.main.arn
         }
         Action   = "s3:PutObject"
         Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
@@ -354,7 +363,7 @@ module "lb" {
     lb_https_listener = {
       port            = 443
       protocol        = "HTTPS"
-      certificate_arn = var.alb_certificate_arn
+      certificate_arn = aws_acm_certificate.vpn_cert.arn
       forward = {
         target_group_key = "lb_target_group"
       }
@@ -391,19 +400,24 @@ resource "aws_ec2_client_vpn_endpoint" "vpn" {
   client_cidr_block      = var.client_cidr_block
   vpc_id                 = module.vpc.vpc_id
   split_tunnel           = var.split_tunnel
+
   authentication_options {
     type                       = "certificate-authentication"
-    root_certificate_chain_arn = aws_acm_certificate.ca_cert.arn
+    root_certificate_chain_arn = aws_acm_certificate.client_cert.arn
   }
+
   transport_protocol = "udp"
   security_group_ids = [module.vpn_sg.id]
+
   connection_log_options {
     enabled               = true
     cloudwatch_log_group  = module.vpn_logs_group.name
     cloudwatch_log_stream = aws_cloudwatch_log_stream.vpn_logs_stream.name
   }
-  dns_servers           = ["169.254.169.253", "8.8.8.8"]
+
+  dns_servers           = ["10.0.0.2", "8.8.8.8"]
   session_timeout_hours = 8
+
   client_login_banner_options {
     enabled     = true
     banner_text = "This VPN is for authorized users only. All activities may be monitored and recorded."
