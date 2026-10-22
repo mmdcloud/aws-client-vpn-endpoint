@@ -479,6 +479,7 @@ remote-cert-tls server
 cipher AES-256-GCM
 verb 3
 reneg-sec 0
+mssfix 1300
 
 <ca>
 ${tls_self_signed_cert.ca_cert.cert_pem}
