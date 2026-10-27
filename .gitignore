@@ -1,2 +1,22 @@
+# Terraform files
 terraform/.terraform*
 terraform/terraform.tfstate*
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+# Secrets, Certificates & VPN profiles
+*.key
+*.pem
+*.crt
+*.csr
+*.ovpn
+terraform/*.ovpn
+client.ovpn
+
+# Node & Environment
+node_modules/
+.env
+.env.*
+npm-debug.log*

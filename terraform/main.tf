@@ -19,8 +19,8 @@ module "vpc" {
   create_igw              = true
   map_public_ip_on_launch = true
   enable_nat_gateway      = true
-  single_nat_gateway      = true # set to false and one_nat_gateway_per_az = true for production HA
-  one_nat_gateway_per_az  = false
+  single_nat_gateway      = false
+  one_nat_gateway_per_az  = true
   tags = {
     Project = "aws-vpn-endpoint"
   }
@@ -91,26 +91,17 @@ module "asg_sg" {
 }
 
 module "vpn_sg" {
-  source = "./modules/security-groups"
-  name   = "client-vpn-endpoint-sg"
-  vpc_id = module.vpc.vpc_id
-  ingress_rules = [
-    {
-      description     = "Allow VPN clients - UDP 443"
-      from_port       = 443
-      to_port         = 443
-      protocol        = "udp"
-      security_groups = []
-      cidr_blocks     = ["0.0.0.0/0"]
-    }
-  ]
+  source        = "./modules/security-groups"
+  name          = "client-vpn-endpoint-sg"
+  vpc_id        = module.vpc.vpc_id
+  ingress_rules = []
   egress_rules = [
     {
-      description = "Allow all outbound traffic"
+      description = "Allow VPN clients to access VPC network"
       from_port   = 0
       to_port     = 0
       protocol    = "-1"
-      cidr_blocks = ["0.0.0.0/0"]
+      cidr_blocks = ["10.0.0.0/16"]
     }
   ]
   tags = {
@@ -313,25 +304,30 @@ module "lb_logs" {
         }
         Action   = "s3:PutObject"
         Resource = "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
+      },
+      {
+        Sid       = "EnforceTLSRequestsOnly"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          "arn:aws:s3:::lb-logs-${random_id.id.hex}",
+          "arn:aws:s3:::lb-logs-${random_id.id.hex}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
       }
     ]
   })
-  cors = [
-    {
-      allowed_headers = ["*"]
-      allowed_methods = ["GET"]
-      allowed_origins = ["*"]
-      max_age_seconds = 3000
-    },
-    {
-      allowed_headers = ["*"]
-      allowed_methods = ["PUT"]
-      allowed_origins = ["*"]
-      max_age_seconds = 3000
-    }
-  ]
-  versioning_enabled = "Enabled"
-  force_destroy      = true
+  versioning_enabled      = "Enabled"
+  force_destroy           = false
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 module "lb" {
@@ -451,13 +447,6 @@ module "vpn_logs_group" {
 resource "aws_cloudwatch_log_stream" "vpn_logs_stream" {
   name           = "vpn-connection-logs"
   log_group_name = module.vpn_logs_group.name
-}
-
-data "aws_ec2_client_vpn_endpoint" "selected" {
-  client_vpn_endpoint_id = aws_ec2_client_vpn_endpoint.vpn.id
-  depends_on = [
-    aws_ec2_client_vpn_endpoint.vpn
-  ]
 }
 
 # Note: Routes for 10.0.0.0/16 are automatically created when subnets are

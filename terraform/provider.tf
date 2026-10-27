@@ -17,10 +17,12 @@ terraform {
       version = "~> 2.0"
     }
   }
+  # Production Remote State Backend
   # backend "s3" {
-  #   bucket       = "awsclientvpnendpoint"
-  #   key          = "terraform.tfstate"
-  #   region       = var.region
+  #   bucket       = "my-terraform-state-bucket"
+  #   key          = "vpn-endpoint/terraform.tfstate"
+  #   region       = "ap-southeast-2"
+  #   encrypt      = true
   #   use_lockfile = true
   # }
 }
