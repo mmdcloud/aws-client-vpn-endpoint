@@ -323,7 +323,7 @@ module "lb_logs" {
     ]
   })
   versioning_enabled      = "Enabled"
-  force_destroy           = false
+  force_destroy           = true
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true

@@ -1,502 +1,369 @@
-# 🚀 AWS Client VPN with Auto-Scaling Web Application
+# 🛡️ AWS Client VPN & Private Auto-Scaling Web Application
 
-Production-grade Terraform infrastructure for deploying a secure AWS Client VPN endpoint with an auto-scaling web application behind an Application Load Balancer.
+Enterprise-ready Infrastructure as Code (Terraform) deploying a secure, split-tunnel **AWS Client VPN Endpoint** granting authenticated remote access to an **Internal Application Load Balancer** and an **Auto-Scaling EC2 Application Fleet** isolated in private subnets.
+
+---
 
 ## 📋 Table of Contents
 
-- [Architecture Overview](#architecture-overview)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Security](#security)
-- [Monitoring](#monitoring)
-- [Troubleshooting](#troubleshooting)
-- [Cost Estimation](#cost-estimation)
-- [Contributing](#contributing)
-- [License](#license)
+- [Architecture Overview](#-architecture-overview)
+- [Key Features](#-key-features)
+- [Repository Structure](#-repository-structure)
+- [Prerequisites](#-prerequisites)
+- [Configuration & Variables](#-configuration--variables)
+- [Deployment Guide](#-deployment-guide)
+- [Client Connection & Testing](#-client-connection--testing)
+- [Security & Production Hardening](#-security--production-hardening)
+- [Production Readiness Roadmap](#-production-readiness-roadmap)
+- [Monitoring & Operations](#-monitoring--operations)
+- [Troubleshooting Runbook](#-troubleshooting-runbook)
+- [Cost Estimation](#-cost-estimation)
+- [License](#-license)
+
+---
 
 ## 🏗️ Architecture Overview
 
+The infrastructure isolates the application entirely inside **Private Subnets**. The Application Load Balancer is configured as **Internal** (`internal = true`), meaning it has no public IP addresses and cannot be reached from the internet. Remote developers and authorized systems connect securely via **AWS Client VPN** into the private network.
+
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        AWS Cloud                            │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                    VPC (10.0.0.0/16)                 │  │
-│  │                                                      │  │
-│  │  ┌────────────────┐      ┌────────────────┐        │  │
-│  │  │ Public Subnet  │      │ Public Subnet  │        │  │
-│  │  │     AZ-1       │      │     AZ-2       │        │  │
-│  │  │                │      │                │        │  │
-│  │  │  ┌──────────┐  │      │  ┌──────────┐  │        │  │
-│  │  │  │   ALB    │◄─┼──────┼─►│   ALB    │  │        │  │
-│  │  │  └────┬─────┘  │      │  └────┬─────┘  │        │  │
-│  │  │       │        │      │       │        │        │  │
-│  │  │  ┌────▼─────┐  │      │  ┌────▼─────┐  │        │  │
-│  │  │  │ Client   │  │      │  │ Client   │  │        │  │
-│  │  │  │   VPN    │  │      │  │   VPN    │  │        │  │
-│  │  │  │ Network  │  │      │  │ Network  │  │        │  │
-│  │  │  │  Assoc   │  │      │  │  Assoc   │  │        │  │
-│  │  │  └──────────┘  │      │  └──────────┘  │        │  │
-│  │  └────────────────┘      └────────────────┘        │  │
-│  │                                                      │  │
-│  │  ┌────────────────┐      ┌────────────────┐        │  │
-│  │  │ Private Subnet │      │ Private Subnet │        │  │
-│  │  │     AZ-1       │      │     AZ-2       │        │  │
-│  │  │                │      │                │        │  │
-│  │  │  ┌──────────┐  │      │  ┌──────────┐  │        │  │
-│  │  │  │   EC2    │  │      │  │   EC2    │  │        │  │
-│  │  │  │  (ASG)   │  │      │  │  (ASG)   │  │        │  │
-│  │  │  └──────────┘  │      │  └──────────┘  │        │  │
-│  │  │  ┌──────────┐  │      │  ┌──────────┐  │        │  │
-│  │  │  │   NAT    │  │      │  │   NAT    │  │        │  │
-│  │  │  │ Gateway  │  │      │  │ Gateway  │  │        │  │
-│  │  │  └──────────┘  │      │  └──────────┘  │        │  │
-│  │  └────────────────┘      └────────────────┘        │  │
-│  │                                                      │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                                                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │ CloudWatch   │  │     ACM      │  │      S3      │    │
-│  │   Logs       │  │ Certificates │  │   (ALB Logs) │    │
-│  └──────────────┘  └──────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Components
-
-- **VPC**: Multi-AZ virtual private cloud with public and private subnets
-- **Client VPN Endpoint**: Certificate-based VPN for secure remote access
-- **Application Load Balancer**: Distributes traffic across multiple availability zones
-- **Auto Scaling Group**: 3-50 EC2 instances with automatic scaling
-- **NAT Gateways**: One per AZ for high availability
-- **CloudWatch**: Centralized logging and monitoring
-- **S3**: ALB access logs storage
-
-## ✨ Features
-
-- **High Availability**: Multi-AZ deployment with NAT Gateway per AZ
-- **Auto Scaling**: Dynamic scaling (3-50 instances) based on demand
-- **Security**: 
-  - Certificate-based VPN authentication
-  - Security groups with least privilege
-  - Encrypted CloudWatch logs
-  - TLS 1.2+ for all connections
-- **Monitoring**: 
-  - VPN connection logs
-  - ALB access logs
-  - CloudWatch metrics
-- **Split Tunneling**: Configurable to route only specific traffic through VPN
-- **Session Management**: 8-hour VPN session timeout
-- **Infrastructure as Code**: 100% Terraform with modular design
-
-## 📦 Prerequisites
-
-- **Terraform**: >= 1.0
-- **AWS CLI**: >= 2.0 (configured with appropriate credentials)
-- **AWS Account**: With appropriate IAM permissions
-- **OpenVPN Client**: For connecting to the VPN endpoint
-
-### Required IAM Permissions
-
-Your AWS credentials need permissions for:
-- VPC and networking resources
-- EC2 instances and Auto Scaling Groups
-- Elastic Load Balancers
-- ACM certificates
-- Client VPN endpoints
-- CloudWatch logs
-- S3 buckets
-- IAM roles and policies
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd aws-client-vpn-infrastructure
+                      ┌───────────────────────────────────────────┐
+                      │            Remote Client Device           │
+                      │  (OpenVPN Client / AWS Client VPN App)    │
+                      └─────────────────────┬─────────────────────┘
+                                            │
+                                            │ Encrypted OpenVPN Tunnel (UDP 443)
+                                            │ [mssfix 1300 / Split-Tunnel]
+                                            ▼
+┌────────────────────────────────── AWS Cloud ──────────────────────────────────┐
+│                                                                               │
+│  AWS Managed Client VPN Endpoint (ap-southeast-2)                             │
+│  ├─ Mutual TLS Authentication (ACM Root CA & Client Cert)                    │
+│  ├─ CloudWatch Connection Logging (/aws/vpn/<domain>)                         │
+│  └─ DNS: AmazonProvidedDNS (10.0.0.2) + Public Fallback (8.8.8.8)            │
+│                                           │                                   │
+│  ┌───────────────────────── VPC (10.0.0.0/16) ─────────────────────────────┐  │
+│  │                                                                         │  │
+│  │  Public Subnets (10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24)                 │  │
+│  │  ┌──────────────────────┐  ┌──────────────────────┐                    │  │
+│  │  │  Internet Gateway    │  │   NAT Gateway(s)     │                    │  │
+│  │  │  (IGW for Outbound)  │  │   (Egress for ASG)   │                    │  │
+│  │  └──────────────────────┘  └──────────────────────┘                    │  │
+│  │                                                                         │  │
+│  │  Private Subnets (10.0.4.0/24, 10.0.5.0/24, 10.0.6.0/24)                │  │
+│  │  ┌──────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Client VPN Network Interfaces (ENIs - Associated Subnets)        │  │  │
+│  │  │ [Security Group: client-vpn-endpoint-sg]                         │  │  │
+│  │  └─────────────────────────────────┬────────────────────────────────┘  │  │
+│  │                                    │ Target Traffic (10.0.0.0/16)       │  │
+│  │                                    ▼                                   │  │
+│  │  ┌──────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Internal Application Load Balancer (ALB)                         │  │  │
+│  │  │ ├─ HTTP Listener (Port 80)  ──► 301 Redirect to HTTPS 443        │  │  │
+│  │  │ ├─ HTTPS Listener (Port 443) ──► Target Group (Port 80)           │  │  │
+│  │  │ └─ Security Group: lb-sg (Allows 80/443 from VPC & VPN SG)       │  │  │
+│  │  └─────────────────────────────────┬────────────────────────────────┘  │  │
+│  │                                    │ Reverse Proxy Routing             │  │
+│  │                                    ▼                                   │  │
+│  │  ┌──────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Auto Scaling Group (2 to 10 Instances - t3.micro)                │  │  │
+│  │  │ ├─ OS: Ubuntu Server 24.04 LTS (HVM gp3)                         │  │  │
+│  │  │ ├─ Reverse Proxy: Nginx (Port 80 -> 3000)                        │  │  │
+│  │  │ ├─ Process Manager: PM2 (Node.js runtime under unprivileged user)│  │  │
+│  │  │ └─ Security Group: asg-sg (Inbound Port 80 from lb-sg only)      │  │  │
+│  │  └──────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                         │  │
+│  └─────────────────────────────────────────────────────────────────────────┘  │
+│                                                                               │
+│  Supporting Platform Services:                                                │
+│  ├─ S3 Bucket (lb-logs-*): Hardened ALB Access Logs (SSE-AES256, TLS Enforced)│
+│  ├─ ACM: TLS Server & Client Certificates for mutual endpoint authentication  │
+│  └─ CloudWatch: Centralized VPN Connection Logs & Audit Trail                 │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Configure Variables
+---
 
-Create a `terraform.tfvars` file:
+## ✨ Key Features
 
-```hcl
-# Region and Availability Zones
-aws_region = "us-east-1"
-azs        = ["us-east-1a", "us-east-1b"]
+- **Private & Zero Public Ingress**: The web application and ALB are deployed strictly inside private subnets without public IP addresses.
+- **Client VPN with Split Tunneling**: Only corporate VPC traffic (`10.0.0.0/16`) routes through the VPN tunnel; regular internet traffic stays on the client's local connection.
+- **Path MTU Clamping (`mssfix 1300`)**: Prevents packet fragmentation drops (`EMSGSIZE Path-MTU=1480`) on client Wi-Fi/broadband connections.
+- **Automated Client Profile Generation**: Generates a self-contained, pre-configured `client.ovpn` profile with embedded keys, certificates, and routing options.
+- **Automatic HTTP-to-HTTPS Redirection**: Internal ALB enforces encrypted transport via HTTP 301 redirection to TLS port 443.
+- **Hardened S3 Logging**: Access log bucket includes Server-Side Encryption (SSE-S3), full S3 Block Public Access, TLS-only enforcement (`aws:SecureTransport`), and zero wildcard CORS.
+- **Non-Root Compute Runtime**: Application bootstraps under an unprivileged `ubuntu` service user with PM2 process manager configured for automatic systemd restart on reboot.
+- **Modular Terraform Architecture**: Reusable submodules for VPC, S3, Security Groups, Launch Templates, and Auto Scaling Groups.
 
-# Network Configuration
-public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
-private_subnets = ["10.0.11.0/24", "10.0.12.0/24"]
+---
 
-# VPN Configuration
-vpn_domain                          = "vpn.example.com"
-organization_name                   = "YourCompany"
-client_cidr_block                   = "172.16.0.0/22"
-split_tunnel                        = true
-certificate_validity_period_hours   = 8760  # 1 year
-```
-
-### 3. Initialize Terraform
-
-```bash
-terraform init
-```
-
-### 4. Review the Plan
-
-```bash
-terraform plan
-```
-
-### 5. Deploy Infrastructure
-
-```bash
-terraform apply
-```
-
-The deployment takes approximately 10-15 minutes.
-
-### 6. Connect to VPN
-
-After deployment, a `client.ovpn` file is generated in the project root:
-
-```bash
-# macOS/Linux
-sudo openvpn --config client.ovpn
-
-# Windows
-# Import client.ovpn into OpenVPN GUI
-```
-
-## ⚙️ Configuration
-
-### Network Settings
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `vpc_cidr` | VPC CIDR block | `10.0.0.0/16` | No |
-| `public_subnets` | Public subnet CIDR blocks | - | Yes |
-| `private_subnets` | Private subnet CIDR blocks | - | Yes |
-| `azs` | Availability zones | - | Yes |
-
-### VPN Settings
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `vpn_domain` | VPN endpoint domain | - | Yes |
-| `client_cidr_block` | VPN client IP range | `172.16.0.0/22` | No |
-| `split_tunnel` | Enable split tunneling | `true` | No |
-| `organization_name` | Certificate organization | - | Yes |
-| `certificate_validity_period_hours` | Client cert validity | `8760` | No |
-
-### Auto Scaling Settings
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `min_size` | Minimum instances | `3` |
-| `max_size` | Maximum instances | `50` |
-| `desired_capacity` | Desired instances | `3` |
-| `instance_type` | EC2 instance type | `t2.micro` |
-
-### Modifying Auto Scaling
-
-Edit `main.tf`:
-
-```hcl
-module "asg" {
-  # ... other configuration ...
-  min_size         = 5
-  max_size         = 100
-  desired_capacity = 10
-}
-```
-
-## 🔒 Security
-
-### Certificate Management
-
-This infrastructure uses self-signed certificates for demonstration. **For production:**
-
-1. **Use ACM Private CA** for certificate management
-2. **Implement certificate rotation** (certificates expire after 1 year)
-3. **Store private keys securely** (AWS Secrets Manager, HashiCorp Vault)
-
-### Rotation Process
-
-```bash
-# Generate new certificates
-terraform apply -replace=tls_private_key.client_key
-
-# Distribute new client.ovpn to users
-# Revoke old certificates if needed
-```
-
-### Security Groups
-
-- **Load Balancer SG**: Allows HTTP (80) and HTTPS (443) from internet
-- **ASG SG**: Allows HTTP (80) only from Load Balancer
-- **VPN SG**: Allows HTTPS (443) from internet for VPN connections
-
-### Best Practices
-
-- [ ] Enable AWS GuardDuty for threat detection
-- [ ] Implement AWS Security Hub for compliance monitoring
-- [ ] Use AWS Systems Manager Session Manager instead of SSH
-- [ ] Enable VPC Flow Logs for network monitoring
-- [ ] Implement AWS Config rules for configuration compliance
-- [ ] Regular security audits and penetration testing
-
-## 📊 Monitoring
-
-### CloudWatch Logs
-
-VPN connection logs are stored in:
-```
-/aws/vpn/<vpn_domain>
-```
-
-Retention: 2192 days (6 years)
-
-### Key Metrics to Monitor
-
-```bash
-# Active VPN connections
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/ClientVPN \
-  --metric-name ActiveConnectionsCount \
-  --dimensions Name=Endpoint,Value=<endpoint-id> \
-  --start-time 2024-01-01T00:00:00Z \
-  --end-time 2024-01-02T00:00:00Z \
-  --period 3600 \
-  --statistics Average
-
-# ALB target health
-aws elbv2 describe-target-health \
-  --target-group-arn <target-group-arn>
-```
-
-### Recommended Alarms
-
-1. **VPN Connection Failures** > 5 in 5 minutes
-2. **ALB Unhealthy Hosts** > 0
-3. **ASG CPU Utilization** > 80%
-4. **NAT Gateway Errors** > 10
-
-## 🔧 Troubleshooting
-
-### VPN Connection Issues
-
-**Problem**: Cannot connect to VPN
-
-```bash
-# Check endpoint status
-aws ec2 describe-client-vpn-endpoints \
-  --client-vpn-endpoint-ids <endpoint-id>
-
-# Verify security group rules
-aws ec2 describe-security-groups \
-  --group-ids <vpn-sg-id>
-
-# Check CloudWatch logs
-aws logs tail /aws/vpn/<vpn_domain> --follow
-```
-
-**Problem**: Connected but cannot access resources
-
-- Verify authorization rules: `aws ec2 describe-client-vpn-authorization-rules`
-- Check route table associations
-- Verify target network CIDR blocks
-
-### Auto Scaling Issues
-
-**Problem**: Instances not scaling
-
-```bash
-# Check ASG activity
-aws autoscaling describe-scaling-activities \
-  --auto-scaling-group-name asg
-
-# Check instance health
-aws autoscaling describe-auto-scaling-instances
-```
-
-### Load Balancer Issues
-
-**Problem**: 502/503 errors
-
-- Check target group health: `aws elbv2 describe-target-health`
-- Review ALB access logs in S3
-- Verify security group rules allow ALB → ASG traffic
-
-### Common Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| Certificate validation failed | Clock skew or expired cert | Sync system time, regenerate certs |
-| Authorization denied | Missing authorization rule | Add rule for target CIDR |
-| Connection timeout | Security group blocking | Check SG rules and NACLs |
-
-## 💰 Cost Estimation
-
-### Monthly Cost Breakdown (us-east-1)
-
-| Service | Usage | Cost |
-|---------|-------|------|
-| Client VPN Endpoint | 730 hours | ~$73 |
-| Client VPN Connections | 10 users × 730 hours | ~$73 |
-| NAT Gateway (2 AZs) | 2 × 730 hours + data | ~$65 |
-| Application Load Balancer | 730 hours + LCUs | ~$23 |
-| EC2 Instances (t2.micro) | 3 × 730 hours | ~$26 |
-| S3 Storage | 10 GB logs | ~$0.23 |
-| CloudWatch Logs | 5 GB ingested | ~$2.50 |
-| Data Transfer | 100 GB out | ~$9 |
-
-**Estimated Total**: ~$271/month (varies by usage)
-
-### Cost Optimization Tips
-
-1. Use split tunneling to reduce VPN data transfer
-2. Implement Auto Scaling policies to scale down during off-hours
-3. Use S3 lifecycle policies to archive old ALB logs
-4. Consider AWS Savings Plans for consistent EC2 usage
-5. Review CloudWatch log retention policies
-
-## 🗂️ Project Structure
+## 🗂️ Repository Structure
 
 ```
 .
-├── main.tf                    # Main infrastructure configuration
-├── variables.tf               # Input variables
-├── outputs.tf                 # Output values
-├── terraform.tfvars          # Variable values (gitignored)
-├── modules/
-│   ├── vpc/                  # VPC module
-│   ├── launch_template/      # EC2 launch template module
-│   ├── auto_scaling_group/   # ASG module
-│   └── s3/                   # S3 module
-├── scripts/
-│   └── user_data.sh         # EC2 instance initialization script
-└── README.md
+├── README.md                           # Documentation & operational runbook
+├── .gitignore                          # Excludes secrets, keys, state, & .ovpn profiles
+├── src/                                # Node.js web application source code
+│   ├── server.mjs                      # Express HTTP server (port 3000)
+│   ├── package.json                    # Application dependencies
+│   ├── Dockerfile                      # Container build definition
+│   └── scripts/default                 # Nginx reverse proxy configuration template
+└── terraform/                          # Infrastructure as Code root
+    ├── main.tf                         # Core infrastructure composition
+    ├── variables.tf                    # Variable declarations and typing
+    ├── outputs.tf                      # Exported endpoints and resource IDs
+    ├── provider.tf                     # Required providers & remote backend setup
+    ├── terraform.tfvars                # Regional and deployment variable values
+    ├── client.ovpn                     # Generated VPN client profile (gitignored)
+    ├── scripts/
+    │   └── user_data.sh                # Hardened EC2 cloud-init provisioning script
+    └── modules/
+        ├── vpc/                        # VPC networking & gateway wrapper
+        ├── security-groups/            # Reusable ingress/egress security group module
+        ├── s3/                         # Encrypted S3 bucket module
+        ├── launch_template/            # EC2 launch template with IAM instance profile
+        ├── auto_scaling_group/         # Auto-scaling group and health check attachment
+        └── cloudwatch/                 # CloudWatch log group & stream configurations
 ```
 
-## 🔄 Maintenance
+---
 
-### Regular Tasks
+## 📦 Prerequisites
 
-**Weekly**:
-- Review CloudWatch logs for anomalies
-- Check VPN connection metrics
-- Verify ASG scaling events
+1. **Terraform**: `>= 1.5.0` installed locally or in CI/CD pipeline.
+2. **AWS CLI**: `>= 2.0` configured with administrative credentials (`aws configure`).
+3. **OpenVPN Client**:
+   - **Linux / macOS**: OpenVPN CLI (`openvpn >= 2.5`) or [Tunnelblick](https://tunnelblick.net/).
+   - **Windows / macOS**: [AWS Client VPN Desktop App](https://aws.amazon.com/vpn/client-vpn-download/) or [OpenVPN Connect v3](https://openvpn.net/client-connect-vpn-for-windows/).
 
-**Monthly**:
-- Review AWS cost and usage reports
-- Update AMIs for security patches
-- Test disaster recovery procedures
+---
 
-**Quarterly**:
-- Rotate VPN certificates
-- Review and update security group rules
-- Conduct security audits
+## ⚙️ Configuration & Variables
 
-### Updating Infrastructure
+All customizable variables are declared in [`terraform/variables.tf`](file:///home/shiv/mohit/aws-client-vpn-endpoint/terraform/variables.tf) and configured in [`terraform/terraform.tfvars`](file:///home/shiv/mohit/aws-client-vpn-endpoint/terraform/terraform.tfvars):
 
+| Variable | Type | Description | Example / Default |
+| :--- | :--- | :--- | :--- |
+| `region` | `string` | AWS deployment region | `"ap-southeast-2"` |
+| `azs` | `list(string)` | Availability zones for Multi-AZ deployment | `["ap-southeast-2a", "ap-southeast-2b", "ap-southeast-2c"]` |
+| `public_subnets` | `list(string)` | CIDR blocks for public subnets (NAT Gateways) | `["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]` |
+| `private_subnets` | `list(string)` | CIDR blocks for private subnets (ALB & ASG) | `["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]` |
+| `organization_name` | `string` | X.509 Certificate Authority Organization | `"mohitd"` |
+| `vpn_domain` | `string` | Domain identifier for certificates and logging | `"mohitd.xyz"` |
+| `client_cidr_block` | `string` | Dedicated CIDR block assigned to VPN clients | `"172.16.0.0/22"` |
+| `split_tunnel` | `bool` | Route only VPC CIDR across the VPN tunnel | `true` |
+| `certificate_validity_period_hours` | `number` | Client & server certificate validity duration | `8760` (1 year) |
+
+---
+
+## 🚀 Deployment Guide
+
+### 1. Configure Credentials
+Ensure your AWS credentials have permission to create VPC, EC2, ELB, ACM, S3, IAM, and Client VPN resources:
 ```bash
-# Update Terraform modules
-terraform init -upgrade
+aws sts get-caller-identity
+```
 
-# Apply changes
+### 2. Initialize Terraform
+Navigate to the `terraform/` directory and initialize provider plugins and local modules:
+```bash
+cd terraform
+terraform init
+```
+
+### 3. Review Execution Plan
+```bash
 terraform plan
+```
+
+### 4. Deploy Infrastructure
+```bash
 terraform apply
+```
+*Note: Provisioning the Client VPN endpoint associations and NAT Gateway typically takes **10–12 minutes**.*
 
-# For critical updates, use blue-green deployment
+### 5. Obtain Outputs
+Upon completion, Terraform outputs the internal load balancer endpoint and generates the client profile:
+```text
+Outputs:
+load_balancer_endpoint = "https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com"
+```
+The file `terraform/client.ovpn` will be created automatically.
+
+---
+
+## 💻 Client Connection & Testing
+
+### 1. Establish the VPN Connection
+
+#### Option A: Linux / macOS Terminal (CLI)
+```bash
+sudo openvpn --config client.ovpn
+```
+Look for the successful completion line:
+```text
+Initialization Sequence Completed
 ```
 
-## 🧪 Testing
+#### Option B: OpenVPN Connect / AWS Client VPN App (GUI)
+1. Open **OpenVPN Connect** or **AWS Client VPN**.
+2. Click **Add Profile** > **Upload File** and select `terraform/client.ovpn`.
+3. Click **Connect**.
 
-### Infrastructure Testing
+---
+
+### 2. Verify Tunnel & Network Routes
+
+While connected to the VPN, open a separate terminal on your client machine:
 
 ```bash
-# Validate Terraform configuration
-terraform validate
+# Verify assigned VPN tunnel IP (should be in 172.16.0.0/22)
+ip addr show tun0
 
-# Format Terraform files
-terraform fmt -recursive
+# Verify that private VPC traffic is routed across tun0
+ip route get 10.0.4.1
 
-# Security scanning with tfsec
-tfsec .
-
-# Compliance checking with Checkov
-checkov -d .
+# Output should confirm:
+# 10.0.4.1 via 172.16.0.33 dev tun0
 ```
 
-### VPN Connectivity Testing
+---
+
+### 3. Access the Internal Web Application
+
+Test the load balancer endpoint using `curl`:
+```bash
+curl -kv https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
+```
+
+> [!NOTE]
+> The `-k` (`--insecure`) flag is expected when accessing the raw AWS internal ALB hostname because the generated self-signed certificate matches `var.vpn_domain` (`mohitd.xyz`).
+
+#### Verify HTTP to HTTPS Redirection:
+```bash
+curl -I http://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
+```
+Expected output:
+```http
+HTTP/1.1 301 Moved Permanently
+Location: https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com:443/
+```
+
+#### Browser Access:
+1. Open your browser and navigate to:
+   ```text
+   https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
+   ```
+2. Accept the self-signed certificate warning (`Advanced` > `Proceed`).
+3. The Node.js application dashboard will load.
+
+---
+
+## 🔒 Security & Production Hardening
+
+The current configuration includes the following security controls:
+
+1. **Non-Root Execution**:
+   - The Node.js runtime and PM2 process manager run strictly under the unprivileged `ubuntu` user (`user_data.sh`).
+2. **Path MTU Blackhole Protection**:
+   - Configured `mssfix 1300` in the client profile to ensure encapsulated UDP packets never exceed broadband/Wi-Fi MTU limits (1480 bytes).
+3. **Internal Network Segmentation**:
+   - ALB Security Group (`lb-sg`): Inbound 80 and 443 restricted to `10.0.0.0/16`, `var.client_cidr_block`, and the Client VPN ENI security group.
+   - ASG Security Group (`asg-sg`): Inbound port 80 permitted **only** from the ALB security group (`module.lb_sg.id`). Direct client-to-instance access is blocked.
+   - VPN ENI Security Group (`client-vpn-endpoint-sg`): Closed to inbound VPC ingress; allows outbound egress only into the VPC network.
+4. **S3 Access Log Hardening**:
+   - Wildcard CORS removed.
+   - SSE-S3 encryption enabled by default.
+   - All 4 S3 Block Public Access flags set to `true`.
+   - Bucket policy explicitly rejects unencrypted HTTP access (`aws:SecureTransport: "false"`).
+   - Deletion protection (`force_destroy = false`) prevents accidental loss of audit logs.
+5. **Session Management**:
+   - Client VPN enforces an 8-hour maximum session duration (`session_timeout_hours = 8`).
+
+---
+
+## 🛣️ Production Readiness Roadmap
+
+To transition this infrastructure from a staging/demo baseline to a regulated corporate production environment, complete the following items:
+
+- [ ] **Migrate to SAML 2.0 / IdP Authentication**:
+  Replace the static shared mutual certificate with **AWS IAM Identity Center**, **Okta**, or **Microsoft Entra ID**. Enforces MFA, device health checks, and individual user deprovisioning.
+- [ ] **Transition to AWS Private CA (ACM PCA)**:
+  Replace the ephemeral Terraform `tls_private_key` resource with AWS Private CA or HashiCorp Vault to ensure private keys are securely kept within an HSM/KMS.
+- [ ] **Multi-AZ NAT Gateways**:
+  In [`terraform/main.tf`](file:///home/shiv/mohit/aws-client-vpn-endpoint/terraform/main.tf#L22-L23), set `single_nat_gateway = false` and `one_nat_gateway_per_az = true` for high availability across all availability zones.
+- [ ] **Remote State Backend**:
+  Uncomment the S3 backend block in [`terraform/provider.tf`](file:///home/shiv/mohit/aws-client-vpn-endpoint/terraform/provider.tf#L20-L26) to enable encrypted remote state storage with native state locking.
+- [ ] **Pre-Baked Golden AMI (Packer)**:
+  Replace dynamic `user_data.sh` package installations (`npm install`, `apt update`) with an immutable Golden AMI built via **HashiCorp Packer** or migrate to containerized workloads on **AWS ECS / EKS**.
+- [ ] **Custom Domain & Valid Public ACM Certificate**:
+  Create an Amazon Route 53 Private Hosted Zone (e.g. `app.internal.yourcompany.com`) and attach an ACM certificate to avoid self-signed browser warnings.
+- [ ] **AWS WAF**:
+  Attach an AWS Web Application Firewall (WAFv2) Web ACL to the Application Load Balancer to protect against SQLi, XSS, and layer-7 flood attacks.
+
+---
+
+## 📊 Monitoring & Operations
+
+### CloudWatch Logs
+
+VPN audit logs are streamed to CloudWatch:
+- **Log Group**: `/aws/vpn/<vpn_domain>` (Retention: 6 years / 2192 days)
+- **Log Stream**: `vpn-connection-logs`
 
 ```bash
-# Test DNS resolution through VPN
-nslookup google.com
-
-# Test connectivity to private resources
-curl http://<private-instance-ip>
-
-# Verify split tunneling
-traceroute 8.8.8.8  # Should NOT go through VPN
-traceroute 10.0.1.10  # Should go through VPN
+# Stream active VPN connections
+aws logs tail /aws/vpn/mohitd.xyz --follow
 ```
 
-## 📝 Changelog
+### ALB Access Logs
 
-### Version 1.0.0 (2024-12-24)
-- Initial release
-- Multi-AZ VPC with public and private subnets
-- Certificate-based Client VPN endpoint
-- Auto-scaling web application
-- Application Load Balancer with access logs
-- CloudWatch monitoring and logging
+ALB access logs are delivered every 5 minutes to S3:
+```bash
+aws s3 ls s3://lb-logs-<random-id>/AWSLogs/<account-id>/elasticloadbalancing/ap-southeast-2/
+```
 
-## 🤝 Contributing
+### Essential Production CloudWatch Alarms
 
-Contributions are welcome! Please follow these steps:
+1. **ALB 5XX Errors**: Metric `HTTPCode_Target_5XX_Count` > 5 in a 1-minute period.
+2. **Unhealthy Host Count**: Metric `UnHealthyHostCount` > 0 in target group `lb_target_group`.
+3. **ASG High CPU**: Metric `CPUUtilization` > 75% for 5 consecutive minutes.
+4. **VPN Connection Failures**: Metric `ActiveConnections` drop or sudden spikes in disconnection events.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+---
 
-### Coding Standards
+## 🔧 Troubleshooting Runbook
 
-- Follow Terraform best practices
-- Use meaningful variable and resource names
-- Include comments for complex logic
-- Update documentation for changes
-- Test changes in a dev environment first
+| Symptom | Root Cause | Solution |
+| :--- | :--- | :--- |
+| `read UDPv4 [EMSGSIZE Path-MTU=1480]: Message too long` | Packet size exceeds client Wi-Fi or ISP Path MTU. | Ensure `mssfix 1300` is present in `client.ovpn`. Clamps TCP MSS to prevent packet drops. |
+| `TLS Error: TLS key negotiation failed to occur within 60 seconds` | Security group or local firewall blocking UDP 443 outbound. | Confirm local network allows outbound UDP port 443. Check endpoint association status in AWS Console. |
+| `net_route_v4_add: ... dev [NULL]` | OpenVPN 2.6 Netlink route logging. | Completely normal behavior on Linux; interface is bound via the gateway IP. |
+| Connection succeeds, but browser cannot resolve ALB DNS | Local DNS not querying AmazonProvidedDNS (`10.0.0.2`). | In Linux CLI OpenVPN, use `resolvectl` or `systemd-resolved` to map DNS, or test with `curl -kv --resolve <host>:443:<private-ip>`. |
+| `HTTP 503 Service Temporarily Unavailable` | EC2 instances bootstrapping or failed health checks. | Wait 2–3 minutes for initial `user_data.sh` completion. Check target group health: `aws elbv2 describe-target-health`. |
+| `InvalidConfigurationRequest: Access Denied for bucket: lb-logs-*` | S3 bucket policy missing ELB service account write rights. | Verify `AWSELBAccountWrite` is present in the S3 bucket policy for `data.aws_elb_service_account.main.arn`. |
+
+---
+
+## 💰 Cost Estimation
+
+Estimated monthly infrastructure costs (AWS `ap-southeast-2` / Sydney):
+
+| Service | Configuration | Estimated Monthly Cost |
+| :--- | :--- | :--- |
+| **AWS Client VPN Endpoint** | 1 Endpoint × 730 hours ($0.15/hr) | ~$109.50 |
+| **Client VPN Connections** | ~5 concurrent users × 160 hrs/mo ($0.05/hr) | ~$40.00 |
+| **NAT Gateway** | 1 NAT Gateway × 730 hours ($0.059/hr) + Data | ~$45.00 |
+| **Application Load Balancer** | 1 ALB × 730 hours ($0.0252/hr) + LCUs | ~$22.00 |
+| **EC2 Auto Scaling Group** | 2 × `t3.micro` instances (Linux) | ~$17.50 |
+| **S3 & CloudWatch Logs** | Storage & Log Ingestion (< 10 GB) | ~$3.00 |
+| **Data Transfer** | Outbound across internet/AZs | ~$5.00 |
+| **Total Estimated Cost** | Baseline Staging Deployment | **~$242.00 / month** |
+
+*Tip: Disassociating subnets from the Client VPN endpoint when not actively testing stops hourly endpoint charges.*
+
+---
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Issues**: [GitHub Issues](https://github.com/your-org/repo/issues)
-- **Documentation**: [Wiki](https://github.com/your-org/repo/wiki)
-- **Email**: devops@yourcompany.com
-
-## ⚠️ Disclaimer
-
-This infrastructure is provided as-is for educational and demonstration purposes. Always review and customize security settings for your specific requirements before deploying to production.
-
-## 🙏 Acknowledgments
-
-- AWS Documentation
-- Terraform AWS Provider
-- OpenVPN Community
-
----
-
-**Made with ❤️ by DevOps Team**
-
-*Last Updated: December 24, 2024*
