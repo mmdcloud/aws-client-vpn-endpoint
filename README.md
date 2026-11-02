@@ -8,6 +8,7 @@ Enterprise-ready Infrastructure as Code (Terraform) deploying a secure, split-tu
 
 - [Architecture Overview](#-architecture-overview)
 - [Key Features](#-key-features)
+- [Visual Verification & Walkthrough](#-visual-verification--walkthrough)
 - [Repository Structure](#-repository-structure)
 - [Prerequisites](#-prerequisites)
 - [Configuration & Variables](#-configuration--variables)
@@ -94,6 +95,19 @@ The infrastructure isolates the application entirely inside **Private Subnets**.
 - **Hardened S3 Logging**: Access log bucket includes Server-Side Encryption (SSE-S3), full S3 Block Public Access, TLS-only enforcement (`aws:SecureTransport`), and zero wildcard CORS.
 - **Non-Root Compute Runtime**: Application bootstraps under an unprivileged `ubuntu` service user with PM2 process manager configured for automatic systemd restart on reboot.
 - **Modular Terraform Architecture**: Reusable submodules for VPC, S3, Security Groups, Launch Templates, and Auto Scaling Groups.
+
+---
+
+## 📸 Visual Verification & Walkthrough
+
+The following captures demonstrate the complete deployment and verification lifecycle from Terraform provisioning to private application access:
+
+| Step | Milestone | Verification Output |
+| :---: | :--- | :--- |
+| **1** | **Infrastructure Provisioned**<br>69 resources created; internal ALB HTTPS endpoint and VPN endpoint deployed | <img src="screenshots/01-terraform-apply.png" width="500" alt="Terraform Apply Complete" /> |
+| **2** | **VPN Handshake Established**<br>OpenVPN tunnel active with assigned `tun0` IP (`172.16.1.130/27`) and VPC route | <img src="screenshots/02-openvpn-tunnel-established.png" width="500" alt="OpenVPN Tunnel Established" /> |
+| **3** | **Internal HTTPS Challenge**<br>Browser reaches the private ALB over port 443 with self-signed certificate challenge | <img src="screenshots/03-alb-certificate-warning.png" width="500" alt="ALB HTTPS Certificate Warning" /> |
+| **4** | **Private Application Dashboard**<br>Internal Node.js demo web app accessed securely inside private subnets | <img src="screenshots/04-app-dashboard-success.png" width="500" alt="Node.js App Dashboard" /> |
 
 ---
 
@@ -185,10 +199,15 @@ terraform apply
 ### 5. Obtain Outputs
 Upon completion, Terraform outputs the internal load balancer endpoint and generates the client profile:
 ```text
+Apply complete! Resources: 69 added, 0 changed, 0 destroyed.
+
 Outputs:
-load_balancer_endpoint = "https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com"
+load_balancer_endpoint = "https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com"
 ```
 The file `terraform/client.ovpn` will be created automatically.
+
+![Terraform Apply Output](screenshots/01-terraform-apply.png)
+*Figure 1: Terraform apply terminal output confirming 69 cloud resources created and the internal ALB endpoint.*
 
 ---
 
@@ -204,6 +223,9 @@ Look for the successful completion line:
 ```text
 Initialization Sequence Completed
 ```
+
+![OpenVPN Connection Established](screenshots/02-openvpn-tunnel-established.png)
+*Figure 2: OpenVPN client establishing the `tun0` interface (`172.16.1.130/27`) and installing the VPC CIDR `10.0.0.0/16` route.*
 
 #### Option B: OpenVPN Connect / AWS Client VPN App (GUI)
 1. Open **OpenVPN Connect** or **AWS Client VPN**.
@@ -233,7 +255,7 @@ ip route get 10.0.4.1
 
 Test the load balancer endpoint using `curl`:
 ```bash
-curl -kv https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
+curl -kv https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
 ```
 
 > [!NOTE]
@@ -241,21 +263,28 @@ curl -kv https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
 
 #### Verify HTTP to HTTPS Redirection:
 ```bash
-curl -I http://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
+curl -I http://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
 ```
 Expected output:
 ```http
 HTTP/1.1 301 Moved Permanently
-Location: https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com:443/
+Location: https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com:443/
 ```
 
 #### Browser Access:
 1. Open your browser and navigate to:
    ```text
-   https://internal-lb-142372591.ap-southeast-2.elb.amazonaws.com
+   https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
    ```
-2. Accept the self-signed certificate warning (`Advanced` > `Proceed`).
-3. The Node.js application dashboard will load.
+2. Accept the self-signed certificate warning (`Advanced` > `Proceed to internal-lb-... (unsafe)`).
+
+   ![Self-Signed Certificate Warning](screenshots/03-alb-certificate-warning.png)
+   *Figure 3: Browser security prompt caused by the self-signed TLS certificate on the internal ALB.*
+
+3. The Node.js application dashboard will load securely over the VPN tunnel.
+
+   ![Application Dashboard](screenshots/04-app-dashboard-success.png)
+   *Figure 4: The private Node.js demo web application successfully loaded over the encrypted AWS Client VPN tunnel.*
 
 ---
 
