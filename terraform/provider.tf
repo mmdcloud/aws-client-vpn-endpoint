@@ -21,7 +21,7 @@ terraform {
   # backend "s3" {
   #   bucket       = "my-terraform-state-bucket"
   #   key          = "vpn-endpoint/terraform.tfstate"
-  #   region       = "ap-southeast-2"
+  #   region       = "us-east-1"
   #   encrypt      = true
   #   use_lockfile = true
   # }

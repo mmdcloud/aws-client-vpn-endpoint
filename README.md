@@ -38,7 +38,7 @@ The infrastructure isolates the application entirely inside **Private Subnets**.
                                             ▼
 ┌────────────────────────────────── AWS Cloud ──────────────────────────────────┐
 │                                                                               │
-│  AWS Managed Client VPN Endpoint (ap-southeast-2)                             │
+│  AWS Managed Client VPN Endpoint (us-east-1)                             │
 │  ├─ Mutual TLS Authentication (ACM Root CA & Client Cert)                    │
 │  ├─ CloudWatch Connection Logging (/aws/vpn/<domain>)                         │
 │  └─ DNS: AmazonProvidedDNS (10.0.0.2) + Public Fallback (8.8.8.8)            │
@@ -158,8 +158,8 @@ All customizable variables are declared in [`terraform/variables.tf`](file:///ho
 
 | Variable | Type | Description | Example / Default |
 | :--- | :--- | :--- | :--- |
-| `region` | `string` | AWS deployment region | `"ap-southeast-2"` |
-| `azs` | `list(string)` | Availability zones for Multi-AZ deployment | `["ap-southeast-2a", "ap-southeast-2b", "ap-southeast-2c"]` |
+| `region` | `string` | AWS deployment region | `"us-east-1"` |
+| `azs` | `list(string)` | Availability zones for Multi-AZ deployment | `["us-east-1a", "us-east-1b", "us-east-1c"]` |
 | `public_subnets` | `list(string)` | CIDR blocks for public subnets (NAT Gateways) | `["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]` |
 | `private_subnets` | `list(string)` | CIDR blocks for private subnets (ALB & ASG) | `["10.0.4.0/24", "10.0.5.0/24", "10.0.6.0/24"]` |
 | `organization_name` | `string` | X.509 Certificate Authority Organization | `"mohitd"` |
@@ -202,7 +202,7 @@ Upon completion, Terraform outputs the internal load balancer endpoint and gener
 Apply complete! Resources: 69 added, 0 changed, 0 destroyed.
 
 Outputs:
-load_balancer_endpoint = "https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com"
+load_balancer_endpoint = "https://internal-lb-684070551.us-east-1.elb.amazonaws.com"
 ```
 The file `terraform/client.ovpn` will be created automatically.
 
@@ -255,7 +255,7 @@ ip route get 10.0.4.1
 
 Test the load balancer endpoint using `curl`:
 ```bash
-curl -kv https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
+curl -kv https://internal-lb-684070551.us-east-1.elb.amazonaws.com
 ```
 
 > [!NOTE]
@@ -263,18 +263,18 @@ curl -kv https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
 
 #### Verify HTTP to HTTPS Redirection:
 ```bash
-curl -I http://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
+curl -I http://internal-lb-684070551.us-east-1.elb.amazonaws.com
 ```
 Expected output:
 ```http
 HTTP/1.1 301 Moved Permanently
-Location: https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com:443/
+Location: https://internal-lb-684070551.us-east-1.elb.amazonaws.com:443/
 ```
 
 #### Browser Access:
 1. Open your browser and navigate to:
    ```text
-   https://internal-lb-684070551.ap-southeast-2.elb.amazonaws.com
+   https://internal-lb-684070551.us-east-1.elb.amazonaws.com
    ```
 2. Accept the self-signed certificate warning (`Advanced` > `Proceed to internal-lb-... (unsafe)`).
 
@@ -349,7 +349,7 @@ aws logs tail /aws/vpn/mohitd.xyz --follow
 
 ALB access logs are delivered every 5 minutes to S3:
 ```bash
-aws s3 ls s3://lb-logs-<random-id>/AWSLogs/<account-id>/elasticloadbalancing/ap-southeast-2/
+aws s3 ls s3://lb-logs-<random-id>/AWSLogs/<account-id>/elasticloadbalancing/us-east-1/
 ```
 
 ### Essential Production CloudWatch Alarms
@@ -376,7 +376,7 @@ aws s3 ls s3://lb-logs-<random-id>/AWSLogs/<account-id>/elasticloadbalancing/ap-
 
 ## 💰 Cost Estimation
 
-Estimated monthly infrastructure costs (AWS `ap-southeast-2` / Sydney):
+Estimated monthly infrastructure costs (AWS `us-east-1` / Sydney):
 
 | Service | Configuration | Estimated Monthly Cost |
 | :--- | :--- | :--- |
